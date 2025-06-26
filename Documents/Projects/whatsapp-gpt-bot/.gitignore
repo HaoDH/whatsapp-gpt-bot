@@ -1,0 +1,12 @@
+
+# Dependencies
+/node_modules
+
+# Session data
+/.wwebjs_auth/
+
+# Cache
+/.wwebjs_cache/
+
+# Logs
+/logs/
