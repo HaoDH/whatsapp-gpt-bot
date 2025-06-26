@@ -1,17 +1,17 @@
 {
   "name": "whatsapp-gpt-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "WhatsApp bot ghi log và đẩy lên GitHub",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7",
+    "qrcode": "^1.5.1",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.30.0"
+    "simple-git": "^3.19.1",
+    "whatsapp-web.js": "^1.23.0"
   }
 }

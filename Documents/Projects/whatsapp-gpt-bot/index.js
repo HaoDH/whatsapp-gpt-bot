@@ -3,43 +3,43 @@ const path = require('path');
 const qrcodeTerminal = require('qrcode-terminal');
 const qrcodeImage = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const simpleGit = require('simple-git');
+const git = simpleGit();
 
-// Khởi tạo client với lưu phiên đăng nhập
+// GitHub info
+const GIT_USER = 'HaoDH';
+const GIT_REPO = 'whatsapp_log';
+const GIT_BRANCH = 'main';
+const GIT_TOKEN = process.env.GH_TOKEN; // Đặt biến này trong Render
+
 const client = new Client({
-    authStrategy: new LocalAuth(), // lưu tại .wwebjs_auth/
+    authStrategy: new LocalAuth(), // sẽ tạo thư mục .wwebjs_auth
     puppeteer: {
-        headless: true, // không mở trình duyệt
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
 });
 
-// Khi QR được tạo
 client.on('qr', (qr) => {
-    console.log('🟡 Quét QR để đăng nhập WhatsApp:');
-
-    // Hiển thị trong terminal
+    console.log('🔄 Mã QR đăng nhập:');
     qrcodeTerminal.generate(qr, { small: true });
 
-    // Lưu ảnh QR vào file để quét bằng điện thoại
     qrcodeImage.toFile('qr.png', qr, {
         color: {
             dark: '#000000',
             light: '#ffffff'
         }
     }, (err) => {
-        if (err) console.error('❌ Không thể tạo ảnh QR:', err);
-        else console.log('✅ Ảnh QR đã được lưu tại: qr.png');
+        if (err) console.error('❌ Không tạo được ảnh QR:', err);
+        else console.log('✅ Đã lưu ảnh QR tại qr.png');
     });
 });
 
-// Khi kết nối thành công
 client.on('ready', () => {
-    console.log('✅ Bot đã kết nối với WhatsApp thành công!');
+    console.log('✅ Bot đã kết nối WhatsApp thành công!');
 });
 
-// Lắng nghe tin nhắn đến
 client.on('message', async (message) => {
-    // Chỉ xử lý tin nhắn trong nhóm
     if (message.from.endsWith('@g.us')) {
         const chat = await message.getChat();
         const sender = await message.getContact();
@@ -47,30 +47,36 @@ client.on('message', async (message) => {
         const groupName = sanitizeFilename(chat.name);
         const logDir = path.join(__dirname, 'logs');
 
-        // Tạo thư mục logs nếu chưa có
-        if (!fs.existsSync(logDir)) {
-            fs.mkdirSync(logDir);
-        }
+        if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
 
         const filePath = path.join(logDir, `${groupName}.txt`);
         const logMessage = `[${new Date().toLocaleString()}] ${sender.pushname || sender.number}: ${message.body}\n`;
 
-        // Ghi vào file log
-        fs.appendFile(filePath, logMessage, (err) => {
-            if (err) {
-                console.error('❌ Lỗi ghi log:', err);
-            }
+        fs.appendFile(filePath, logMessage, async (err) => {
+            if (err) return console.error('❌ Lỗi ghi log:', err);
+            console.log(`📩 [${chat.name}] ${logMessage.trim()}`);
+            await pushLogToGitHub(filePath);
         });
-
-        // In ra terminal
-        console.log(`📩 [${chat.name}] ${logMessage.trim()}`);
     }
 });
 
-// Hàm lọc tên nhóm thành tên file hợp lệ
 function sanitizeFilename(name) {
     return name.replace(/[<>:"/\\|?*]+/g, '_').trim();
 }
 
-// Khởi chạy bot
+async function pushLogToGitHub(filePath) {
+    try {
+        await git.addConfig('user.name', 'whatsapp-bot');
+        await git.addConfig('user.email', 'bot@example.com');
+        await git.add(filePath);
+        await git.commit(`update log: ${path.basename(filePath)}`);
+
+        const remoteUrl = `https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_USER}/${GIT_REPO}.git`;
+        await git.push(remoteUrl, GIT_BRANCH);
+        console.log('📤 Log đã được push lên GitHub!');
+    } catch (err) {
+        console.error('❌ Push lỗi:', err.message);
+    }
+}
+
 client.initialize();
