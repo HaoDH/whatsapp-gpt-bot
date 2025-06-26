@@ -7,49 +7,55 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const simpleGit = require('simple-git');
 const git = simpleGit();
 
-// GitHub info
+// === GitHub Config ===
 const GIT_USER = 'HaoDH';
 const GIT_REPO = 'whatsapp_log';
 const GIT_BRANCH = 'main';
-const GIT_TOKEN = process.env.GH_TOKEN; // ⚠️ Đặt trong Render
+const GIT_TOKEN = process.env.GH_TOKEN; // ⚠️ Token để trong Render secrets
 
-// === QR CODE IN MEMORY ===
-let latestQR = null; // Mã QR base64 để hiển thị web
+// === QR Code In-Memory ===
+let latestQR = null;
 
-// ===== WhatsApp BOT Setup =====
+// === Đảm bảo thư mục logs tồn tại ===
+const logDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir);
+}
+
+// === Khởi tạo WhatsApp client ===
 const client = new Client({
-    authStrategy: new LocalAuth(), // tạo .wwebjs_auth/
+    authStrategy: new LocalAuth(), // lưu session tại .wwebjs_auth/
     puppeteer: {
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
 });
 
+// === Xử lý QR Code ===
 client.on('qr', (qr) => {
     console.log('📲 Quét mã QR để đăng nhập:');
     qrcodeTerminal.generate(qr, { small: true });
 
-    // Chuyển QR sang ảnh base64 để hiển thị trên web
+    // Tạo QR base64 để hiển thị trên web
     qrcodeImage.toDataURL(qr, (err, url) => {
         if (err) return console.error('❌ Không tạo được QR base64:', err);
-        latestQR = url.replace(/^data:image\/png;base64,/, '');
+        latestQR = url.replace(/^data:image\\/png;base64,/, '');
         console.log('✅ QR đã sẵn sàng để hiển thị trên trình duyệt!');
     });
 });
 
+// === Sẵn sàng nhận tin nhắn ===
 client.on('ready', () => {
     console.log('✅ Bot đã kết nối với WhatsApp!');
 });
 
+// === Ghi lại tin nhắn nhóm vào file ===
 client.on('message', async (message) => {
     if (message.from.endsWith('@g.us')) {
         const chat = await message.getChat();
         const sender = await message.getContact();
 
         const groupName = sanitizeFilename(chat.name);
-        const logDir = path.join(__dirname, 'logs');
-        if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
-
         const filePath = path.join(logDir, `${groupName}.txt`);
         const logMessage = `[${new Date().toLocaleString()}] ${sender.pushname || sender.number}: ${message.body}\n`;
 
@@ -60,25 +66,35 @@ client.on('message', async (message) => {
     }
 });
 
+// === Tên file hợp lệ ===
 function sanitizeFilename(name) {
-    return name.replace(/[<>:"/\\|?*]+/g, '_').trim();
+    return name.replace(/[<>:"/\\\\|?*]+/g, '_').trim();
 }
 
-// ===== GIT PUSH mỗi 5 phút =====
+// === Tự động push logs lên GitHub ===
 async function pushAllLogsToGitHub() {
     try {
+        const txtFiles = fs.existsSync(logDir)
+            ? fs.readdirSync(logDir).filter(file => file.endsWith('.txt'))
+            : [];
+
+        if (txtFiles.length === 0) {
+            console.log('📭 [AutoPush] Không có file .txt để push.');
+            return;
+        }
+
         await git.addConfig('user.name', 'whatsapp-bot');
         await git.addConfig('user.email', 'bot@example.com');
         await git.add('logs/*.txt');
 
         const status = await git.status();
         if (status.files.length === 0) {
-            console.log('⏳ [AutoPush] Không có thay đổi.');
+            console.log('⏳ [AutoPush] Không có thay đổi mới.');
             return;
         }
 
-        await git.commit(`Auto update logs @ ${new Date().toLocaleString()}`);
         const remoteUrl = `https://${GIT_USER}:${GIT_TOKEN}@github.com/${GIT_USER}/${GIT_REPO}.git`;
+        await git.commit(`Auto update logs @ ${new Date().toLocaleString()}`);
         await git.push(remoteUrl, GIT_BRANCH);
 
         console.log('📤 [AutoPush] Đã push logs lên GitHub!');
@@ -87,16 +103,14 @@ async function pushAllLogsToGitHub() {
     }
 }
 
-// Khởi động bot
+// === Khởi động bot & tự push mỗi 5 phút ===
 client.initialize();
-
-// Cài tự động push mỗi 5 phút
 setInterval(() => {
     console.log('🕔 Kiểm tra & push logs...');
     pushAllLogsToGitHub();
 }, 5 * 60 * 1000);
 
-// ===== Web Server hiển thị QR (base64) =====
+// === Web server để hiển thị QR ===
 const app = express();
 const PORT = process.env.PORT || 3000;
 
