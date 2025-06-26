@@ -1,7 +1,7 @@
 {
   "name": "whatsapp-gpt-bot",
   "version": "1.0.0",
-  "description": "Bot WhatsApp log + hiển thị QR",
+  "description": "Bot WhatsApp log + QR web hiển thị",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

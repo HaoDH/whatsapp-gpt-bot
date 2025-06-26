@@ -11,7 +11,10 @@ const git = simpleGit();
 const GIT_USER = 'HaoDH';
 const GIT_REPO = 'whatsapp_log';
 const GIT_BRANCH = 'main';
-const GIT_TOKEN = process.env.GH_TOKEN; // đặt trong Render env
+const GIT_TOKEN = process.env.GH_TOKEN; // ⚠️ Đặt trong Render
+
+// === QR CODE IN MEMORY ===
+let latestQR = null; // Mã QR base64 để hiển thị web
 
 // ===== WhatsApp BOT Setup =====
 const client = new Client({
@@ -26,14 +29,11 @@ client.on('qr', (qr) => {
     console.log('📲 Quét mã QR để đăng nhập:');
     qrcodeTerminal.generate(qr, { small: true });
 
-    qrcodeImage.toFile('qr.png', qr, {
-        color: {
-            dark: '#000000',
-            light: '#ffffff'
-        }
-    }, (err) => {
-        if (err) console.error('❌ Lỗi tạo QR:', err);
-        else console.log('✅ Đã lưu QR vào qr.png');
+    // Chuyển QR sang ảnh base64 để hiển thị trên web
+    qrcodeImage.toDataURL(qr, (err, url) => {
+        if (err) return console.error('❌ Không tạo được QR base64:', err);
+        latestQR = url.replace(/^data:image\/png;base64,/, '');
+        console.log('✅ QR đã sẵn sàng để hiển thị trên trình duyệt!');
     });
 });
 
@@ -45,14 +45,16 @@ client.on('message', async (message) => {
     if (message.from.endsWith('@g.us')) {
         const chat = await message.getChat();
         const sender = await message.getContact();
+
         const groupName = sanitizeFilename(chat.name);
         const logDir = path.join(__dirname, 'logs');
         if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+
         const filePath = path.join(logDir, `${groupName}.txt`);
         const logMessage = `[${new Date().toLocaleString()}] ${sender.pushname || sender.number}: ${message.body}\n`;
 
         fs.appendFile(filePath, logMessage, (err) => {
-            if (err) return console.error('❌ Ghi log lỗi:', err);
+            if (err) return console.error('❌ Lỗi ghi log:', err);
             console.log(`📩 [${chat.name}] ${logMessage.trim()}`);
         });
     }
@@ -92,23 +94,25 @@ client.initialize();
 setInterval(() => {
     console.log('🕔 Kiểm tra & push logs...');
     pushAllLogsToGitHub();
-}, 5 * 60 * 1000); // 5 phút
+}, 5 * 60 * 1000);
 
-// ===== Web Server để hiển thị ảnh QR =====
+// ===== Web Server hiển thị QR (base64) =====
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(__dirname));
-
 app.get('/', (req, res) => {
+    const qrHTML = latestQR
+        ? `<img src="data:image/png;base64,${latestQR}" width="300" alt="QR Code">`
+        : `<p style="color:red;">⚠️ QR chưa được tạo hoặc đã hết hạn. Hãy restart app để tạo lại.</p>`;
+
     res.send(`
         <h2>📲 QR đăng nhập WhatsApp</h2>
         <p>Scan QR bằng WhatsApp trên điện thoại:</p>
-        <img src="/qr.png" width="300" alt="QR Code">
-        <p><i>(Nếu không thấy QR, hãy restart app để tạo lại)</i></p>
+        ${qrHTML}
+        <p><i>(QR hết hạn sau ~1 phút. Nếu mất, restart app để tạo lại.)</i></p>
     `);
 });
 
 app.listen(PORT, () => {
-    console.log(`🌐 Server web đang chạy tại http://localhost:${PORT}`);
+    console.log(`🌐 Web server đang chạy tại http://localhost:${PORT}`);
 });
