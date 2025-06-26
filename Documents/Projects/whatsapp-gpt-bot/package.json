@@ -1,12 +1,13 @@
 {
   "name": "whatsapp-gpt-bot",
   "version": "1.0.0",
-  "description": "WhatsApp bot ghi log và đẩy lên GitHub định kỳ",
+  "description": "Bot WhatsApp log + hiển thị QR",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
+    "express": "^4.18.2",
     "qrcode": "^1.5.1",
     "qrcode-terminal": "^0.12.0",
     "simple-git": "^3.19.1",
