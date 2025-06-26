@@ -39,7 +39,7 @@ client.on('qr', (qr) => {
     // Tạo QR base64 để hiển thị trên web
     qrcodeImage.toDataURL(qr, (err, url) => {
         if (err) return console.error('❌ Không tạo được QR base64:', err);
-        latestQR = url.replace(/^data:image\\/png;base64,/, '');
+        latestQR = url.replace(/^data:image\/png;base64,/, '');
         console.log('✅ QR đã sẵn sàng để hiển thị trên trình duyệt!');
     });
 });
